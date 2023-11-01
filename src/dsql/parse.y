@@ -694,6 +694,12 @@ using namespace Firebird;
 %token <metaNamePtr> UNICODE_CHAR
 %token <metaNamePtr> UNICODE_VAL
 
+// tokens added for Firebird 6.0
+
+%token <metaNamePtr> BTRIM
+%token <metaNamePtr> RTRIM
+%token <metaNamePtr> LTRIM
+
 // precedence declarations for expression evaluation
 
 %left	OR
@@ -4332,6 +4338,9 @@ keyword_or_column
 	| VARBINARY
 	| WINDOW
 	| WITHOUT
+        | BTRIM                                 // added in FB 6.0
+        | LTRIM
+        | RTRIM
 	;
 
 col_opt
@@ -8465,6 +8474,9 @@ of_first_last_day_part
 string_value_function
 	: substring_function
 	| trim_function
+        | btrim_function
+        | ltrim_function
+        | rtrim_function
 	| UPPER '(' value ')'
 		{ $$ = newNode<StrCaseNode>(blr_upcase, $3); }
 	| LOWER '(' value ')'
@@ -8504,6 +8516,34 @@ trim_function
 	| TRIM '(' value ')'
 		{ $$ = newNode<TrimNode>(blr_trim_both, $3); }
 	;
+
+
+%type <valueExprNode> btrim_function
+btrim_function
+        : BTRIM '(' value ',' value ')'
+                { $$ = newNode<TrimNode>(blr_trim_both, $3, $5); }
+        | BTRIM '(' value ')'
+                { $$ = newNode<TrimNode>(blr_trim_both, $3); }
+        ;
+
+
+%type <valueExprNode> ltrim_function
+ltrim_function
+        : LTRIM '(' value ',' value ')'
+                { $$ = newNode<TrimNode>(blr_trim_leading, $3, $5); }
+        | LTRIM '(' value ')'
+                { $$ = newNode<TrimNode>(blr_trim_leading, $3); }
+        ;
+
+
+%type <valueExprNode> rtrim_function
+rtrim_function
+        : RTRIM '(' value ',' value ')'
+                { $$ = newNode<TrimNode>(blr_trim_trailing, $3, $5); }
+        | RTRIM '(' value ')'
+                { $$ = newNode<TrimNode>(blr_trim_trailing, $3); }
+        ;
+
 
 %type <blrOp> trim_specification
 trim_specification

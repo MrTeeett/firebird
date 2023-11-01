@@ -12446,7 +12446,19 @@ ValueExprNode* TrimNode::dsqlPass(DsqlCompilerScratch* dsqlScratch)
 
 void TrimNode::setParameterName(dsql_par* parameter) const
 {
-	parameter->par_name = parameter->par_alias = "TRIM";
+    switch (where) {
+    case blr_trim_both:
+        parameter->par_name = parameter->par_alias = "TRIM";
+        break;
+    case blr_trim_leading:
+        parameter->par_name = parameter->par_alias = "LTRIM";
+        break;
+    case blr_trim_trailing:
+        parameter->par_name = parameter->par_alias = "RTRIM";
+        break;
+    default:
+        break;
+    }
 }
 
 bool TrimNode::setParameterType(DsqlCompilerScratch* dsqlScratch,
