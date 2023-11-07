@@ -464,4 +464,10 @@
 
 #define blr_skip_locked				(unsigned char) 223
 
+// FB 6.0 specific BLR
+
+#define blr_btrim           (unsigned char)224
+#define blr_ltrim           (unsigned char)225
+#define blr_rtrim           (unsigned char)226
+
 #endif // FIREBIRD_IMPL_BLR_H

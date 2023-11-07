@@ -12447,17 +12447,17 @@ ValueExprNode* TrimNode::dsqlPass(DsqlCompilerScratch* dsqlScratch)
 void TrimNode::setParameterName(dsql_par* parameter) const
 {
     switch (where) {
-    case blr_trim_both:
-        parameter->par_name = parameter->par_alias = "TRIM";
+    case blr_btrim:
+        parameter->par_name = parameter->par_alias = "BTRIM";
         break;
-    case blr_trim_leading:
+    case blr_ltrim:
         parameter->par_name = parameter->par_alias = "LTRIM";
         break;
-    case blr_trim_trailing:
+    case blr_rtrim:
         parameter->par_name = parameter->par_alias = "RTRIM";
         break;
     default:
-        break;
+        parameter->par_name = parameter->par_alias = "TRIM";
     }
 }
 
@@ -12685,17 +12685,19 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 	if (charactersCanonicalLen)
 	{
 		if (where == blr_trim_both || where == blr_trim_leading)
-		{
-			// CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
-			for (; offsetLead + charactersCanonicalLen <= valueCanonicalLen;
-				 offsetLead += charactersCanonicalLen)
-			{
-				if (memcmp(charactersCanonical.begin(), &valueCanonical[offsetLead],
-						charactersCanonicalLen) != 0)
-				{
-					break;
-				}
-			}
+        {
+            {
+                // CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
+                for (; offsetLead + charactersCanonicalLen <= valueCanonicalLen;
+                     offsetLead += charactersCanonicalLen)
+                {
+                    if (memcmp(charactersCanonical.begin(), &valueCanonical[offsetLead],
+                               charactersCanonicalLen) != 0)
+                    {
+                        break;
+                    }
+                }
+            }
 		}
 
 		if (where == blr_trim_both || where == blr_trim_trailing)
@@ -12711,6 +12713,48 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 				}
 			}
 		}
+
+        if (where == blr_btrim || where == blr_ltrim)
+        {
+            while (offsetLead < valueCanonicalLen)
+            {
+                bool found = false;
+                for (int i = 0; i < charactersCanonicalLen; ++i)
+                {
+                    if (valueCanonical[offsetLead] == charactersCanonical[i])
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    break;
+                }
+                ++offsetLead;
+            }
+        }
+
+        if (where == blr_btrim || where == blr_rtrim)
+        {
+            while (offsetTrail - charactersCanonicalLen >= offsetLead)
+            {
+                bool found = false;
+                for (int i = 0; i < charactersCanonicalLen; ++i)
+                {
+                    if (valueCanonical[offsetTrail - charactersCanonicalLen] == charactersCanonical[i])
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    break;
+                }
+                offsetTrail -= charactersCanonicalLen;
+            }
+        }
 	}
 
 	if (valueDesc->isBlob())

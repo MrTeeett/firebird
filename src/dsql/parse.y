@@ -8521,27 +8521,27 @@ trim_function
 %type <valueExprNode> btrim_function
 btrim_function
         : BTRIM '(' value ',' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_both, $3, $5); }
+                { $$ = newNode<TrimNode>(blr_btrim, $3, $5); }
         | BTRIM '(' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_both, $3); }
+                { $$ = newNode<TrimNode>(blr_btrim, $3); }
         ;
 
 
 %type <valueExprNode> ltrim_function
 ltrim_function
         : LTRIM '(' value ',' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_leading, $3, $5); }
+                { $$ = newNode<TrimNode>(blr_ltrim, $3, $5); }
         | LTRIM '(' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_leading, $3); }
+                { $$ = newNode<TrimNode>(blr_ltrim, $3); }
         ;
 
 
 %type <valueExprNode> rtrim_function
 rtrim_function
         : RTRIM '(' value ',' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_trailing, $3, $5); }
+                { $$ = newNode<TrimNode>(blr_rtrim, $3, $5); }
         | RTRIM '(' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_trailing, $3); }
+                { $$ = newNode<TrimNode>(blr_rtrim, $3); }
         ;
 
 
