@@ -80,7 +80,6 @@ namespace
 
 static const TimeZoneDesc* getDesc(USHORT timeZone);
 static inline bool isOffset(USHORT timeZone);
-static USHORT makeFromOffset(int sign, unsigned tzh, unsigned tzm);
 static inline SSHORT offsetZoneToDisplacement(USHORT timeZone);
 static inline USHORT displacementToOffsetZone(SSHORT displacement);
 static int parseNumber(const char*& p, const char* end);
@@ -634,6 +633,20 @@ void TimeZoneUtil::extractOffset(const ISC_TIME_TZ& timeTz, SSHORT* offset)
 	extractOffset(tsTz, offset);
 }
 
+// Makes a time zone id from offsets.
+USHORT TimeZoneUtil::makeFromOffset(int sign, unsigned tzh, unsigned tzm)
+{
+	if (!TimeZoneUtil::isValidOffset(sign, tzh, tzm))
+	{
+		string str;
+		str.printf("%s%02u:%02u", (sign == -1 ? "-" : "+"), tzh, tzm);
+		status_exception::raise(Arg::Gds(isc_invalid_timezone_offset) << str);
+	}
+
+	return (USHORT)displacementToOffsetZone((tzh * 60 + tzm) * sign);
+}
+
+
 // Converts a time from local to UTC.
 void TimeZoneUtil::localTimeToUtc(ISC_TIME& time, ISC_USHORT timeZone)
 {
@@ -1120,7 +1133,10 @@ bool TimeZoneRuleIterator::next()
 	}
 
 	if (!hasNext || icuDate > MAX_ICU_TIMESTAMP)
+	{
 		icuDate = MAX_ICU_TIMESTAMP;
+		hasNext = false;
+	}
 
 	icuLib.ucalSetMillis(icuCalendar, icuDate, &icuErrorCode);
 
@@ -1130,7 +1146,7 @@ bool TimeZoneRuleIterator::next()
 		(icuDate == MAX_ICU_TIMESTAMP ? ISC_TIME_SECONDS_PRECISION / 1000 : 0));
 	endTimestamp.time_zone = TimeZoneUtil::GMT_ZONE;
 
-	startTicks = endTicks + 1;
+	startTicks = (hasNext ? endTicks : toTicks) + 1;
 
 	return true;
 }
@@ -1151,19 +1167,6 @@ static const TimeZoneDesc* getDesc(USHORT timeZone)
 static inline bool isOffset(USHORT timeZone)
 {
 	return timeZone <= ONE_DAY * 2;
-}
-
-// Makes a time zone id from offsets.
-static USHORT makeFromOffset(int sign, unsigned tzh, unsigned tzm)
-{
-	if (!TimeZoneUtil::isValidOffset(sign, tzh, tzm))
-	{
-		string str;
-		str.printf("%s%02u:%02u", (sign == -1 ? "-" : "+"), tzh, tzm);
-		status_exception::raise(Arg::Gds(isc_invalid_timezone_offset) << str);
-	}
-
-	return (USHORT)displacementToOffsetZone((tzh * 60 + tzm) * sign);
 }
 
 // Gets the displacement from a offset-based time zone id.

@@ -279,8 +279,10 @@ namespace
 	class MessageMoverNode : public CompoundStmtNode
 	{
 	public:
-		MessageMoverNode(MemoryPool& pool, MessageNode* fromMessage, MessageNode* toMessage)
-			: CompoundStmtNode(pool)
+		MessageMoverNode(MemoryPool& pool, MessageNode* fromMessage, MessageNode* toMessage,
+					MessageNode* aCheckMessageEof = nullptr)
+			: CompoundStmtNode(pool),
+			  checkMessageEof(aCheckMessageEof)
 		{
 			// Iterate over the format items, except the EOF item.
 			for (USHORT i = 0; i < (fromMessage->format->fmt_count / 2) * 2; i += 2)
@@ -314,6 +316,25 @@ namespace
 				assign->asgnTo = param;
 			}
 		}
+
+		const StmtNode* execute(thread_db* tdbb, Request* request, ExeState* exeState) const override
+		{
+			if (checkMessageEof &&
+				request->req_operation == Request::req_evaluate &&
+				(request->req_flags & req_proc_select))
+			{
+				const auto msg = request->getImpure<UCHAR>(checkMessageEof->impureOffset);
+				const auto eof = (SSHORT*) (msg + (IPTR) checkMessageEof->format->fmt_desc.back().dsc_address);
+
+				if (!*eof)
+					request->req_operation = Request::req_return;
+			}
+
+			return CompoundStmtNode::execute(tdbb, request, exeState);
+		}
+
+	private:
+		MessageNode* checkMessageEof;
 	};
 
 	// External function node.
@@ -362,7 +383,8 @@ namespace
 		{
 			SuspendNode* suspend = FB_NEW_POOL(pool) SuspendNode(pool);
 			suspend->message = intOutMessageNode;
-			suspend->statement = FB_NEW_POOL(pool) MessageMoverNode(pool, extOutMessageNode, intOutMessageNode);
+			suspend->statement = FB_NEW_POOL(pool) MessageMoverNode(pool,
+				extOutMessageNode, intOutMessageNode, intOutMessageNode);
 
 			statements.add(suspend);
 			statements.add(FB_NEW_POOL(pool) StallNode(pool));
@@ -381,34 +403,37 @@ namespace
 			switch (request->req_operation)
 			{
 				case Request::req_evaluate:
+					impure->sta_state = 0;
+					*eof = 0;
+
 					fb_assert(!resultSet);
 					resultSet = procedure->open(tdbb, extInMsg, extOutMsg);
 
 					if (!resultSet)
-					{
-						*eof = 0;
 						break;
-					}
-					else
-						*eof = -1;
 					// fall into
 
 				case Request::req_proceed:
 				case Request::req_sync:
+					*eof = 0;
 					if (resultSet)
 					{
 						if (resultSet->fetch(tdbb) && (request->req_flags & req_proc_fetch))
 							*eof = -1;
 						else
 						{
-							*eof = 0;
 							delete resultSet;
 							resultSet = NULL;
 						}
 					}
 
 					impure->sta_state = 0;	// suspend node
-					request->req_operation = Request::req_sync;
+
+					if (!*eof)
+						request->req_operation = Request::req_return;
+					else
+						request->req_operation = Request::req_sync;
+
 					break;
 
 				case Request::req_unwind:
@@ -722,6 +747,12 @@ ExtEngineManager::ExtRoutine::ExtRoutine(thread_db* tdbb, ExtEngineManager* aExt
 	engine->addRef();
 }
 
+void ExtEngineManager::ExtRoutine::PluginDeleter::operator()(IPluginBase* ptr)
+{
+	if (ptr)
+		PluginManagerInterfacePtr()->releasePlugin(ptr);
+}
+
 
 //---------------------
 
@@ -745,7 +776,7 @@ ExtEngineManager::Function::~Function()
 
 void ExtEngineManager::Function::execute(thread_db* tdbb, UCHAR* inMsg, UCHAR* outMsg) const
 {
-	EngineAttachmentInfo* attInfo = extManager->getEngineAttachment(tdbb, engine);
+	EngineAttachmentInfo* attInfo = extManager->getEngineAttachment(tdbb, engine.get());
 	const MetaString& userName = udf->invoker ? udf->invoker->getUserName() : "";
 	ContextManager<IExternalFunction> ctxManager(tdbb, attInfo, function,
 		(udf->getName().package.isEmpty() ?
@@ -796,7 +827,7 @@ ExtEngineManager::ResultSet::ResultSet(thread_db* tdbb, UCHAR* inMsg, UCHAR* out
 	  attachment(tdbb->getAttachment()),
 	  firstFetch(true)
 {
-	attInfo = procedure->extManager->getEngineAttachment(tdbb, procedure->engine);
+	attInfo = procedure->extManager->getEngineAttachment(tdbb, procedure->engine.get());
 	const MetaString& userName = procedure->prc->invoker ? procedure->prc->invoker->getUserName() : "";
 	ContextManager<IExternalProcedure> ctxManager(tdbb, attInfo, procedure->procedure,
 		(procedure->prc->getName().package.isEmpty() ?
@@ -906,10 +937,11 @@ ExtEngineManager::Trigger::~Trigger()
 void ExtEngineManager::Trigger::execute(thread_db* tdbb, Request* request, unsigned action,
 	record_param* oldRpb, record_param* newRpb) const
 {
-	EngineAttachmentInfo* attInfo = extManager->getEngineAttachment(tdbb, engine);
-	const Nullable<bool>& ssDefiner = trg->ssDefiner.specified ? trg->ssDefiner :
-		(trg->relation && trg->relation->rel_ss_definer.specified ? trg->relation->rel_ss_definer : Nullable<bool>() );
-	const MetaString& userName = ssDefiner.specified && ssDefiner.value ? trg->relation->rel_owner_name.c_str() : "";
+	EngineAttachmentInfo* attInfo = extManager->getEngineAttachment(tdbb, engine.get());
+	const TriState& ssDefiner = trg->ssDefiner.isAssigned() ? trg->ssDefiner :
+		(trg->relation && trg->relation->rel_ss_definer.isAssigned() ? trg->relation->rel_ss_definer : TriState());
+	const MetaString& userName = ssDefiner.asBool() ?
+		trg->relation->rel_owner_name.c_str() : "";
 	ContextManager<IExternalTrigger> ctxManager(tdbb, attInfo, trigger,
 		CallerName(obj_trigger, trg->name, userName));
 
@@ -1581,7 +1613,7 @@ void ExtEngineManager::makeTrigger(thread_db* tdbb, CompilerScratch* csb, Jrd::T
 	entryPointTrimmed.trim();
 
 	EngineAttachmentInfo* attInfo = getEngineAttachment(tdbb, engine);
-	const MetaString& userName = trg->ssDefiner.specified && trg->ssDefiner.value ? trg->owner.c_str() : "";
+	const MetaString& userName = trg->ssDefiner.asBool() ? trg->owner.c_str() : "";
 	ContextManager<IExternalTrigger> ctxManager(tdbb, attInfo, attInfo->adminCharSet,
 		CallerName(obj_trigger, trg->name, userName));
 

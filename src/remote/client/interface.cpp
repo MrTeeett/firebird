@@ -66,6 +66,7 @@
 #include "../common/IntlParametersBlock.h"
 #include "../common/status.h"
 #include "../common/db_alias.h"
+#include "../common/classes/auto.h"
 
 #include "../auth/SecurityDatabase/LegacyClient.h"
 #include "../auth/SecureRemotePassword/client/SrpClient.h"
@@ -1097,7 +1098,7 @@ static void enqueue_receive(rem_port*, t_rmtque_fn, Rdb*, void*, Rrq::rrq_repeat
 static void dequeue_receive(rem_port*);
 static THREAD_ENTRY_DECLARE event_thread(THREAD_ENTRY_PARAM);
 static Rvnt* find_event(rem_port*, SLONG);
-static bool get_new_dpb(ClumpletWriter&, const ParametersSet&);
+static bool get_new_dpb(ClumpletWriter&, const ParametersSet&, bool);
 static void info(CheckStatusWrapper*, Rdb*, P_OP, USHORT, USHORT, USHORT,
 	const UCHAR*, USHORT, const UCHAR*, ULONG, UCHAR*);
 static bool init(CheckStatusWrapper*, ClntAuthBlock&, rem_port*, P_OP, PathName&,
@@ -1138,7 +1139,7 @@ static const unsigned ANALYZE_LOOPBACK =	0x02;
 static const unsigned ANALYZE_MOUNTS =		0x04;
 static const unsigned ANALYZE_EMP_NAME =	0x08;
 
-inline static void reset(IStatus* status) throw()
+inline static void reset(IStatus* status) noexcept
 {
 	status->init();
 }
@@ -1186,7 +1187,7 @@ IAttachment* RProvider::attach(CheckStatusWrapper* status, const char* filename,
 		ClumpletWriter newDpb(ClumpletReader::dpbList, MAX_DPB_SIZE, dpb, dpb_length);
 		unsigned flags = ANALYZE_MOUNTS;
 
-		if (get_new_dpb(newDpb, dpbParam))
+		if (get_new_dpb(newDpb, dpbParam, loopback))
 			flags |= ANALYZE_USER_VFY;
 
 		if (loopback)
@@ -1866,7 +1867,7 @@ Firebird::IAttachment* RProvider::create(CheckStatusWrapper* status, const char*
 			reinterpret_cast<const UCHAR*>(dpb), dpb_length);
 		unsigned flags = ANALYZE_MOUNTS;
 
-		if (get_new_dpb(newDpb, dpbParam))
+		if (get_new_dpb(newDpb, dpbParam, loopback))
 			flags |= ANALYZE_USER_VFY;
 
 		if (loopback)
@@ -3645,9 +3646,21 @@ ResultSet* Statement::openCursor(CheckStatusWrapper* status, Firebird::ITransact
 		sqldata->p_sqldata_timeout = statement->rsr_timeout;
 		sqldata->p_sqldata_cursor_flags = flags;
 
-		send_partial_packet(port, packet);
-		defer_packet(port, packet, true);
-		message->msg_address = NULL;
+		{
+			Firebird::Cleanup msgClean([&message] {
+				message->msg_address = NULL;
+			});
+
+			if (statement->rsr_flags.test(Rsr::DEFER_EXECUTE))
+			{
+				send_partial_packet(port, packet);
+				defer_packet(port, packet, true);
+			}
+			else
+			{
+				send_and_receive(status, rdb, packet);
+			}
+		}
 
 		ResultSet* rs = FB_NEW ResultSet(this, outFormat, flags);
 		rs->addRef();
@@ -6520,7 +6533,7 @@ Firebird::IService* RProvider::attachSvc(CheckStatusWrapper* status, const char*
 		PathName node_name, expanded_name(service);
 
 		ClumpletWriter newSpb(ClumpletReader::spbList, MAX_DPB_SIZE, spb, spbLength);
-		const bool user_verification = get_new_dpb(newSpb, spbParam);
+		const bool user_verification = get_new_dpb(newSpb, spbParam, loopback);
 
 		ClntAuthBlock cBlock(NULL, &newSpb, &spbParam);
 		unsigned flags = 0;
@@ -7376,6 +7389,7 @@ static rem_port* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned 
 	int inet_af = AF_UNSPEC;
 
 	cBlock.loadClnt(pb, &parSet);
+	pb.deleteWithTag(parSet.auth_block);
 	authenticateStep0(cBlock);
 
 	bool needFile = !(flags & ANALYZE_EMP_NAME);
@@ -8061,7 +8075,7 @@ static Rvnt* find_event( rem_port* port, SLONG id)
 }
 
 
-static bool get_new_dpb(ClumpletWriter& dpb, const ParametersSet& par)
+static bool get_new_dpb(ClumpletWriter& dpb, const ParametersSet& par, bool loopback)
 {
 /**************************************
  *
@@ -8075,7 +8089,7 @@ static bool get_new_dpb(ClumpletWriter& dpb, const ParametersSet& par)
  *
  **************************************/
 	bool redirection = Config::getRedirection();
-    if (((!redirection) && dpb.find(par.address_path)) || dpb.find(par.map_attach))
+    if (((loopback || !redirection) && dpb.find(par.address_path)) || dpb.find(par.map_attach))
 	{
 		status_exception::raise(Arg::Gds(isc_unavailable));
 	}
@@ -9408,9 +9422,10 @@ void Attachment::cancelOperation(CheckStatusWrapper* status, int kind)
 			unsupported();
 		}
 
-		MutexEnsureUnlock guard(rdb->rdb_async_lock, FB_FUNCTION);	// This is async operation
-		if (!guard.tryEnter())
+		Cleanup unlockAsyncLock([this] { --(rdb->rdb_async_lock); });
+		if (++(rdb->rdb_async_lock) != 1)
 		{
+			// Something async already runs
 			Arg::Gds(isc_async_active).raise();
 		}
 

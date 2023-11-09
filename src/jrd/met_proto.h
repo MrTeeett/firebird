@@ -109,7 +109,7 @@ void		MET_update_generator_increment(Jrd::thread_db* tdbb, SLONG gen_id, SLONG s
 void		MET_lookup_index(Jrd::thread_db*, Jrd::MetaName&, const Jrd::MetaName&, USHORT);
 void		MET_lookup_index_condition(Jrd::thread_db*, Jrd::jrd_rel*, Jrd::index_desc*);
 void		MET_lookup_index_expression(Jrd::thread_db*, Jrd::jrd_rel*, Jrd::index_desc*);
-bool		MET_lookup_index_expression_blr(Jrd::thread_db* tdbb, const Jrd::MetaName& index_name, Jrd::bid& blob_id);
+bool		MET_lookup_index_expr_cond_blr(Jrd::thread_db* tdbb, const Jrd::MetaName& index_name, Jrd::bid& expr_blob_id, Jrd::bid& cond_blob_id);
 SLONG		MET_lookup_index_name(Jrd::thread_db*, const Jrd::MetaName&, SLONG*, Jrd::IndexStatus* status);
 bool		MET_lookup_partner(Jrd::thread_db*, Jrd::jrd_rel*, struct Jrd::index_desc*, const TEXT*);
 Jrd::jrd_prc*	MET_lookup_procedure(Jrd::thread_db*, const Jrd::QualifiedName&, bool);
@@ -148,6 +148,6 @@ void MET_store_dependencies(Jrd::thread_db*, Firebird::Array<Jrd::CompilerScratc
 	const Jrd::jrd_rel*, const Jrd::MetaName&, int, Jrd::jrd_tra*);
 
 int			MET_get_linger(Jrd::thread_db*);
-Nullable<bool>	MET_get_ss_definer(Jrd::thread_db*);
+TriState	MET_get_ss_definer(Jrd::thread_db*);
 
 #endif // JRD_MET_PROTO_H

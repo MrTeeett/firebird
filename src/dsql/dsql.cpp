@@ -1127,22 +1127,21 @@ static UCHAR* var_info(const dsql_msg* message,
 	for (FB_SIZE_T i = 0; i < parameters.getCount(); i++)
 	{
 		const dsql_par* param = parameters[i];
-		fb_assert(param);
 
-		if (param->par_index >= first_index)
+		if (param && param->par_index >= first_index)
 		{
 			dsc desc = param->par_desc;
 
 			// Scan sources of coercion rules in reverse order to observe
 			// 'last entered in use' rule. Start with dynamic binding rules ...
-			if (!attachment->att_bindings.coerce(&desc))
+			if (!attachment->att_bindings.coerce(tdbb, &desc))
 			{
 				// next - given in DPB ...
-				if (!attachment->getInitialBindings()->coerce(&desc))
+				if (!attachment->getInitialBindings()->coerce(tdbb, &desc))
 				{
 					Database* dbb = tdbb->getDatabase();
 					// and finally - rules from .conf files.
-					dbb->getBindings()->coerce(&desc, dbb->dbb_compatibility_index);
+					dbb->getBindings()->coerce(tdbb, &desc, dbb->dbb_compatibility_index);
 				}
 			}
 

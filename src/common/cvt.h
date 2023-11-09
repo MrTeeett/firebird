@@ -85,7 +85,7 @@ class Int128;
 } // namespace Firebird
 
 
-void CVT_conversion_error(const dsc*, ErrorFunction);
+void CVT_conversion_error(const dsc*, ErrorFunction, const Firebird::Exception* = nullptr);
 double CVT_power_of_ten(const int);
 SLONG CVT_get_long(const dsc*, SSHORT, Firebird::DecimalStatus, ErrorFunction);
 bool CVT_get_boolean(const dsc*, ErrorFunction);
@@ -95,7 +95,6 @@ Firebird::Decimal128 CVT_get_dec128(const dsc*, Firebird::DecimalStatus, ErrorFu
 Firebird::Int128 CVT_get_int128(const dsc*, SSHORT, Firebird::DecimalStatus, ErrorFunction);
 Firebird::Int128 CVT_hex_to_int128(const char* str, USHORT len);
 USHORT CVT_make_string(const dsc*, USHORT, const char**, vary*, USHORT, Firebird::DecimalStatus, ErrorFunction);
-void CVT_make_null_string(const dsc*, USHORT, const char**, vary*, USHORT, Firebird::DecimalStatus, ErrorFunction);
 void CVT_move_common(const dsc*, dsc*, Firebird::DecimalStatus, Firebird::Callbacks*);
 void CVT_move(const dsc*, dsc*, Firebird::DecimalStatus, ErrorFunction);
 SSHORT CVT_decompose(const char*, USHORT, SSHORT*, ErrorFunction);
@@ -109,5 +108,7 @@ SQUAD CVT_get_quad(const dsc*, SSHORT, Firebird::DecimalStatus, ErrorFunction);
 void CVT_string_to_datetime(const dsc*, ISC_TIMESTAMP_TZ*, bool*, const Firebird::EXPECT_DATETIME,
 	bool, Firebird::Callbacks*);
 const UCHAR* CVT_get_bytes(const dsc*, unsigned&);
+Firebird::string CVT_datetime_to_format_string(const dsc* desc, const Firebird::string& format, Firebird::Callbacks* cb);
+ISC_TIMESTAMP_TZ CVT_string_to_format_datetime(const dsc* desc, const Firebird::string& format, Firebird::Callbacks* cb);
 
 #endif //COMMON_CVT_H

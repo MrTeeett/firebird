@@ -572,8 +572,6 @@ int gbak(Firebird::UtilSvc* uSvc)
 	if (switches.exists(IN_SW_BURP_SE, argv.begin(), 1, argc))
 		return svc_api_gbak(uSvc, switches);
 
-	uSvc->started();
-
 	if (argc <= 1)
 	{
 		burp_usage(switches);
@@ -597,7 +595,7 @@ int gbak(Firebird::UtilSvc* uSvc)
 	tdgbl->gbl_sw_old_descriptions = false;
 	tdgbl->gbl_sw_mode = false;
 	tdgbl->gbl_sw_skip_count = 0;
-	tdgbl->gbl_sw_par_workers = 1;
+	tdgbl->gbl_sw_par_workers = uSvc->getParallelWorkers();
 	tdgbl->action = NULL;
 
 	burp_fil* file = NULL;
@@ -1318,7 +1316,7 @@ int gbak(Firebird::UtilSvc* uSvc)
 			errNum = IN_SW_BURP_S;
 		else if (tdgbl->gbl_sw_no_reserve)
 			errNum = IN_SW_BURP_US;
-		else if (tdgbl->gbl_sw_replica.isAssigned())
+		else if (tdgbl->gbl_sw_replica.has_value())
 			errNum = IN_SW_BURP_REPLICA;
 
 		if (errNum != IN_SW_BURP_0)
@@ -1396,13 +1394,12 @@ int gbak(Firebird::UtilSvc* uSvc)
 	tdgbl->action->act_action = ACT_unknown;
 
 	action = open_files(file1, &file2, sw_replace, dpb);
-
 	MVOL_init(tdgbl->io_buffer_size);
+	uSvc->started();
 
 	int result;
 	tdgbl->gbl_dpb_data.add(dpb.getBuffer(), dpb.getBufferLength());
 
-	tdgbl->uSvc->started();
 	switch (action)
 	{
 	case RESTORE:
