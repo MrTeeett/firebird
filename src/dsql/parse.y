@@ -4437,9 +4437,9 @@ keyword_or_column
 	| WINDOW
 	| WITHOUT
 	| CALL					// added in FB 6.0
-    | BTRIM 
-    | LTRIM
-    | RTRIM
+        | BTRIM
+        | LTRIM
+        | RTRIM
 	;
 
 col_opt
