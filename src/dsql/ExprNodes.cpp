@@ -12913,15 +12913,11 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
             while (offsetTrail - charactersCanonicalLen >= offsetLead)
             {
                 bool found = false;
-                for (int i = 0; i < charactersCanonicalLen; ++i)
+                for (int i = 0; i < charactersCanonicalLen; i+=4)
                 {
                     if (valueCanonical[offsetTrail - charactersCanonicalLen] == charactersCanonical[i])
                     {
                         found = true;
-                    }
-                    else
-                    {
-                        found = false;
                         break;
                     }
                 }
