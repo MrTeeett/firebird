@@ -12863,7 +12863,7 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
                 {
                     break;
                 }
-                offsetLead += 4;
+                offsetLead += 1;
             }
         }
 
