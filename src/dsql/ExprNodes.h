@@ -586,6 +586,11 @@ public:
 	virtual void genBlr(DsqlCompilerScratch* dsqlScratch);
 	virtual void make(DsqlCompilerScratch* dsqlScratch, dsc* desc);
 
+	virtual bool ignoreNulls(const StreamList& /*streams*/) const
+	{
+		return false;
+	}
+
 	virtual void getDesc(thread_db* tdbb, CompilerScratch* csb, dsc* desc);
 	virtual ValueExprNode* copy(thread_db* tdbb, NodeCopier& copier) const;
 	virtual ValueExprNode* pass2(thread_db* tdbb, CompilerScratch* csb);
@@ -824,7 +829,7 @@ public:
 
 private:
 	static dsql_fld* resolveContext(DsqlCompilerScratch* dsqlScratch,
-		const MetaName& qualifier, dsql_ctx* context, bool resolveByAlias);
+		const MetaName& qualifier, dsql_ctx* context);
 
 public:
 	MetaName dsqlQualifier;

@@ -31,7 +31,7 @@
 
 #include "../common/DecFloat.h"
 
-namespace Jrd {
+namespace Firebird {
 
 class CharSet;
 
@@ -56,9 +56,9 @@ public:
 public:
 	virtual bool transliterate(const dsc* from, dsc* to, CHARSET_ID&) = 0;
 	virtual CHARSET_ID getChid(const dsc* d) = 0;
-	virtual Jrd::CharSet* getToCharset(CHARSET_ID charset2) = 0;
-	virtual void validateData(Jrd::CharSet* toCharset, SLONG length, const UCHAR* q) = 0;
-	virtual ULONG validateLength(Jrd::CharSet* charSet, CHARSET_ID charSetId, ULONG length, const UCHAR* start,
+	virtual CharSet* getToCharset(CHARSET_ID charset2) = 0;
+	virtual void validateData(CharSet* toCharset, SLONG length, const UCHAR* q) = 0;
+	virtual ULONG validateLength(CharSet* charSet, CHARSET_ID charSetId, ULONG length, const UCHAR* start,
 		const USHORT size) = 0;
 	virtual SLONG getLocalDate() = 0;
 	virtual ISC_TIMESTAMP getCurrentGmtTimeStamp() = 0;
@@ -109,6 +109,7 @@ void CVT_string_to_datetime(const dsc*, ISC_TIMESTAMP_TZ*, bool*, const Firebird
 	bool, Firebird::Callbacks*);
 const UCHAR* CVT_get_bytes(const dsc*, unsigned&);
 Firebird::string CVT_datetime_to_format_string(const dsc* desc, const Firebird::string& format, Firebird::Callbacks* cb);
-ISC_TIMESTAMP_TZ CVT_string_to_format_datetime(const dsc* desc, const Firebird::string& format, Firebird::Callbacks* cb);
+ISC_TIMESTAMP_TZ CVT_string_to_format_datetime(const dsc* desc, const Firebird::string& format, Firebird::Callbacks* cb,
+	const Firebird::EXPECT_DATETIME expectedType);
 
 #endif //COMMON_CVT_H

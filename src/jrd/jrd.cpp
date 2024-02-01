@@ -1111,6 +1111,7 @@ namespace Jrd
 		PathName	dpb_set_bind;
 		string	dpb_decfloat_round;
 		string	dpb_decfloat_traps;
+		string	dpb_owner;
 
 	public:
 		static const ULONG DPB_FLAGS_MASK = DBB_damaged;
@@ -1337,7 +1338,7 @@ static void		start_transaction(thread_db* tdbb, bool transliterate, jrd_tra** tr
 static void		rollback(thread_db*, jrd_tra*, const bool);
 static void		purge_attachment(thread_db* tdbb, StableAttachmentPart* sAtt, unsigned flags = 0);
 static void		getUserInfo(UserId&, const DatabaseOptions&, const char*,
-	const RefPtr<const Config>*, bool, Mapping& mapping, bool);
+	const RefPtr<const Config>*, Mapping& mapping, bool);
 static void		waitForShutdown(Semaphore&);
 
 static THREAD_ENTRY_DECLARE shutdown_thread(THREAD_ENTRY_PARAM);
@@ -1353,7 +1354,7 @@ TraceFailedConnection::TraceFailedConnection(const char* filename, const Databas
 {
 	Mapping mapping(Mapping::MAP_ERROR_HANDLER, NULL);
 	mapping.setAuthBlock(m_options->dpb_auth_block);
-	getUserInfo(m_id, *m_options, m_filename, NULL, false, mapping, false);
+	getUserInfo(m_id, *m_options, m_filename, NULL, mapping, false);
 }
 
 
@@ -1837,8 +1838,7 @@ JAttachment* JProvider::internalAttach(CheckStatusWrapper* user_status, const ch
 
 				// Initialize TIP cache. We do this late to give SDW a chance to
 				// work while we read states for all interesting transactions
-				dbb->dbb_tip_cache = FB_NEW_POOL(*dbb->dbb_permanent) TipCache(dbb);
-				dbb->dbb_tip_cache->initializeTpc(tdbb);
+				dbb->dbb_tip_cache = TipCache::create(tdbb);
 
 				// linger
 				dbb->dbb_linger_seconds = MET_get_linger(tdbb);
@@ -1949,7 +1949,7 @@ JAttachment* JProvider::internalAttach(CheckStatusWrapper* user_status, const ch
 				try
 				{
 					mapping.setDb(filename, expanded_name.c_str(), jAtt);
-					getUserInfo(userId, options, filename, &config, false, mapping, options.dpb_reset_icu);
+					getUserInfo(userId, options, filename, &config, mapping, options.dpb_reset_icu);
 				}
 				catch(const Exception&)
 				{
@@ -2847,7 +2847,41 @@ JAttachment* JProvider::createDatabase(CheckStatusWrapper* user_status, const ch
 
 			// Check for correct credentials supplied
 			mapping.setSecurityDbAlias(config->getSecurityDatabase(), nullptr);
-			getUserInfo(userId, options, filename, &config, true, mapping, false);
+			getUserInfo(userId, options, filename, &config, mapping, false);
+
+			// Check user's power level
+			CreateGrant powerLevel = CreateGrant::ASSUMED; // By default it is a boot build or embedded mode where everything is allowed
+			if (options.dpb_auth_block.hasData())
+			{
+				powerLevel = checkCreateDatabaseGrant(userId.getUserName(), userId.getTrustedRole(), userId.getSqlRole(), config->getSecurityDatabase());
+			}
+
+			switch (powerLevel)
+			{
+			case CreateGrant::NONE:
+					(Arg::Gds(isc_no_priv) << "CREATE" << "DATABASE" << filename).raise();
+
+			case CreateGrant::ASSUMED:
+				if (options.dpb_owner.hasData())
+				{
+					// Superuser can create databases for anyone other
+					fb_utils::dpbItemUpper(options.dpb_owner);
+					userId.setUserName(options.dpb_owner);
+				}
+				break;
+
+			case CreateGrant::GRANTED:
+				if (options.dpb_owner.hasData())
+				{
+					// Superuser can create databases for anyone other
+					fb_utils::dpbItemUpper(options.dpb_owner);
+					if (userId.getUserName() != options.dpb_owner)
+					{
+						(Arg::Gds(isc_no_priv) << "IMPERSONATE USER" << "DATABASE" << filename).raise();
+					}
+				}
+				break;
+			}
 
 #ifdef WIN_NT
 			guardDbInit.enter();		// Required to correctly expand name of just created database
@@ -3180,8 +3214,7 @@ JAttachment* JProvider::createDatabase(CheckStatusWrapper* user_status, const ch
 			config->notify();
 
 			// Initialize TIP cache
-			dbb->dbb_tip_cache = FB_NEW_POOL(*dbb->dbb_permanent) TipCache(dbb);
-			dbb->dbb_tip_cache->initializeTpc(tdbb);
+			dbb->dbb_tip_cache = TipCache::create(tdbb);
 
 			// Init complete - we can release dbInitMutex
 			dbb->dbb_flags &= ~(DBB_new | DBB_creating);
@@ -4385,12 +4418,12 @@ void JService::query(CheckStatusWrapper* user_status,
 					    receiveItems, bufferLength, buffer);
 
 			// If there is a status vector from a service thread, copy it into the thread status
-			const FbStatusVector* from = svc->getStatus();
-			if (from->getState())
+			Service::StatusAccessor status = svc->getStatusAccessor();
+			if (status->getState())
 			{
-				fb_utils::copyStatus(user_status, from);
+				fb_utils::copyStatus(user_status, status);
 				// Empty out the service status vector
-				svc->initStatus();
+				status.init();
 				return;
 			}
 		}
@@ -4452,9 +4485,10 @@ void JService::start(CheckStatusWrapper* user_status, unsigned int spbLength, co
 
 		svc->start(spbLength, spb);
 
-		if (svc->getStatus()->getState() & IStatus::STATE_ERRORS)
+		UtilSvc::StatusAccessor status = svc->getStatusAccessor();
+		if (status->getState() & IStatus::STATE_ERRORS)
 		{
-			fb_utils::copyStatus(user_status, svc->getStatus());
+			fb_utils::copyStatus(user_status, status);
 			return;
 		}
 	}
@@ -7274,6 +7308,10 @@ void DatabaseOptions::get(const UCHAR* dpb, USHORT dpb_length, bool& invalid_cli
 			dpb_upgrade_db = true;
 			break;
 
+		case isc_dpb_owner:
+			getString(rdr, dpb_owner);
+			break;
+
 		default:
 			break;
 		}
@@ -7553,11 +7591,17 @@ static JAttachment* create_attachment(const PathName& alias_name,
 
 static void check_single_maintenance(thread_db* tdbb)
 {
-	UCHAR spare_memory[RAW_HEADER_SIZE + PAGE_ALIGNMENT];
-	UCHAR* header_page_buffer = FB_ALIGN(spare_memory, PAGE_ALIGNMENT);
+	Database* const dbb = tdbb->getDatabase();
+
+	const ULONG ioBlockSize = dbb->getIOBlockSize();
+	const ULONG headerSize = MAX(RAW_HEADER_SIZE, ioBlockSize);
+
+	HalfStaticArray<UCHAR, RAW_HEADER_SIZE + PAGE_ALIGNMENT> temp;
+	UCHAR* header_page_buffer = temp.getAlignedBuffer(headerSize, ioBlockSize);
+
 	Ods::header_page* const header_page = reinterpret_cast<Ods::header_page*>(header_page_buffer);
 
-	PIO_header(tdbb, header_page_buffer, RAW_HEADER_SIZE);
+	PIO_header(tdbb, header_page_buffer, headerSize);
 
 	if ((header_page->hdr_flags & Ods::hdr_shutdown_mask) == Ods::hdr_shutdown_single)
 	{
@@ -8543,13 +8587,12 @@ static VdnResult verifyDatabaseName(const PathName& name, FbStatusVector* status
     @param aliasName
     @param dbName
     @param config
-    @param creating
     @param iAtt
     @param cryptCb
 
  **/
 static void getUserInfo(UserId& user, const DatabaseOptions& options, const char* aliasName,
-	const RefPtr<const Config>* config, bool creating, Mapping& mapping, bool icuReset)
+	const RefPtr<const Config>* config, Mapping& mapping, bool icuReset)
 {
 	bool wheel = false;
 	int id = -1, group = -1;	// CVC: This var contained trash
@@ -8580,12 +8623,6 @@ static void getUserInfo(UserId& user, const DatabaseOptions& options, const char
 
 			if (mapping.mapUser(name, trusted_role) & Mapping::MAP_DOWN)
 				user.setFlag(USR_mapdown);
-
-			if (creating && config)		// when config is NULL we are in error handler
-			{
-				if (!checkCreateDatabaseGrant(name, trusted_role, options.dpb_role_name, (*config)->getSecurityDatabase()))
-					(Arg::Gds(isc_no_priv) << "CREATE" << "DATABASE" << aliasName).raise();
-			}
 		}
 		else
 		{
@@ -8696,6 +8733,10 @@ static void unwindAttach(thread_db* tdbb, const char* filename, const Exception&
 		{
 			fb_assert(!dbb->locked());
 			ThreadStatusGuard temp_status(tdbb);
+
+			// In case when sweep attachment failed try to release appropriate lock
+			if (options.dpb_sweep)
+				dbb->clearSweepStarting();
 
 			const auto attachment = tdbb->getAttachment();
 

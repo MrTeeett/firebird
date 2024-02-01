@@ -4131,6 +4131,7 @@ Statement* Attachment::prepare(CheckStatusWrapper* status, ITransaction* apiTra,
 		prepare->p_sqlst_items.cstr_length = (ULONG) items.getCount();
 		prepare->p_sqlst_items.cstr_address = items.begin();
 		prepare->p_sqlst_buffer_length = (ULONG) buffer.getCount();
+		prepare->p_sqlst_flags = flags;
 
 		send_packet(rdb->rdb_port, packet);
 
@@ -8392,19 +8393,51 @@ static bool init(CheckStatusWrapper* status, ClntAuthBlock& cBlock, rem_port* po
 
 		port->port_client_crypt_callback = cryptCallback;
 		cBlock.createCryptCallback(&port->port_client_crypt_callback);
+		auto cb = port->port_client_crypt_callback;
 
-		// Make attach packet
-		P_ATCH* attach = &packet->p_atch;
-		packet->p_operation = op;
-		attach->p_atch_file.cstr_length = (ULONG) file_name.length();
-		attach->p_atch_file.cstr_address = reinterpret_cast<const UCHAR*>(file_name.c_str());
-		attach->p_atch_dpb.cstr_length = (ULONG) dpb.getBufferLength();
-		attach->p_atch_dpb.cstr_address = dpb.getBuffer();
+		for(;;)
+		{
+			// Make attach packet
+			P_ATCH* attach = &packet->p_atch;
+			packet->p_operation = op;
+			attach->p_atch_file.cstr_length = (ULONG) file_name.length();
+			attach->p_atch_file.cstr_address = reinterpret_cast<const UCHAR*>(file_name.c_str());
+			attach->p_atch_dpb.cstr_length = (ULONG) dpb.getBufferLength();
+			attach->p_atch_dpb.cstr_address = dpb.getBuffer();
 
-		send_packet(port, packet);
+			send_packet(port, packet);
+			try
+			{
+				authReceiveResponse(false, cBlock, port, rdb, status, packet, true);
+			}
+			catch (const Exception& ex)
+			{
+				FbLocalStatus stAttach, statusAfterAttach;
+				ex.stuffException(&stAttach);
 
-		authReceiveResponse(false, cBlock, port, rdb, status, packet, true);
-		return true;
+				const ISC_STATUS* v = stAttach->getErrors();
+				if (cb && (fb_utils::containsErrorCode(v, isc_bad_crypt_key) ||
+						   fb_utils::containsErrorCode(v, isc_db_crypt_key)))
+				{
+					auto rc = cb->afterAttach(&statusAfterAttach, file_name.c_str(), &stAttach);
+					if (statusAfterAttach.isSuccess() && rc == ICryptKeyCallback::DO_RETRY)
+						continue;
+				}
+
+				throw;
+			}
+
+			// response is success
+			if (cb)
+			{
+				FbLocalStatus statusAfterAttach;
+				cb->afterAttach(&statusAfterAttach, file_name.c_str(), nullptr);
+				if (!fb_utils::containsErrorCode(statusAfterAttach->getErrors(), isc_interface_version_too_old))
+					check(&statusAfterAttach);
+			}
+
+			return true;
+		}
 	}
 	catch (const Exception& ex)
 	{
@@ -9828,6 +9861,14 @@ Firebird::ICryptKeyCallback* ClntAuthBlock::ClientCrypt::create(const Config* co
 
 unsigned ClntAuthBlock::ClientCrypt::callback(unsigned dlen, const void* data, unsigned blen, void* buffer)
 {
+	// if we have a retry iface - use it
+	if (afterIface)
+	{
+		unsigned retlen = afterIface->callback(dlen, data, blen, buffer);
+		HANDSHAKE_DEBUG(fprintf(stderr, "Iface %p returned %d\n", currentIface, retlen));
+		return retlen;
+	}
+
 	HANDSHAKE_DEBUG(fprintf(stderr, "dlen=%d blen=%d\n", dlen, blen));
 
 	int loop = 0;
@@ -9853,10 +9894,14 @@ unsigned ClntAuthBlock::ClientCrypt::callback(unsigned dlen, const void* data, u
 				unsigned retlen = currentIface->callback(dlen, data, blen, buffer);
 				HANDSHAKE_DEBUG(fprintf(stderr, "Iface %p returned %d\n", currentIface, retlen));
 				if (retlen)
+				{
+					triedPlugins.add(pluginItr);
 					return retlen;
+				}
 			}
 
 			// no success with iface - clear it
+			currentIface->dispose();
 			// appropriate data structures to be released by plugin cleanup code
 			currentIface = nullptr;
 		}
@@ -9868,4 +9913,49 @@ unsigned ClntAuthBlock::ClientCrypt::callback(unsigned dlen, const void* data, u
 
 	// no luck with suggested data
 	return 0;
+}
+
+unsigned ClntAuthBlock::ClientCrypt::afterAttach(CheckStatusWrapper* st, const char* dbName, const IStatus* attStatus)
+{
+	while (triedPlugins.hasData())
+	{
+		if (afterIface)
+		{
+			auto rc = afterIface->afterAttach(st, dbName, attStatus);
+			if (attStatus && (rc == NO_RETRY))
+			{
+				afterIface->dispose();
+				afterIface = nullptr;
+				triedPlugins.remove();
+				continue;
+			}
+			return rc;
+		}
+		else
+		{
+			FbLocalStatus st;
+			afterIface = triedPlugins.get()->chainHandle(&st);
+			check(&st, isc_interface_version_too_old);
+			fb_assert(afterIface);
+			if (!afterIface)
+				triedPlugins.remove();
+		}
+	}
+
+	return NO_RETRY;
+}
+
+void ClntAuthBlock::ClientCrypt::destroy()
+{
+	if (currentIface)
+	{
+		currentIface->dispose();
+		currentIface = nullptr;
+	}
+
+	if (afterIface)
+	{
+		afterIface->dispose();
+		afterIface = nullptr;
+	}
 }

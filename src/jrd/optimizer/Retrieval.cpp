@@ -629,6 +629,7 @@ void Retrieval::analyzeNavigation(const InversionCandidateList& inversions)
 			candidate->cost = DEFAULT_INDEX_COST + indexScratch.cardinality;
 			candidate->indexes = 1;
 			candidate->scratch = &indexScratch;
+			candidate->nonFullMatchedSegments = indexScratch.segments.getCount();
 			tempCandidates.add(candidate);
 		}
 
@@ -651,14 +652,14 @@ void Retrieval::analyzeNavigation(const InversionCandidateList& inversions)
 
 bool Retrieval::betterInversion(const InversionCandidate* inv1,
 								const InversionCandidate* inv2,
-								bool ignoreUnmatched) const
+								bool navigation) const
 {
 	// Return true if inversion1 is *better* than inversion2.
 	// It's mostly about the retrieval cost, but other aspects are also taken into account.
 
 	if (inv1->unique && !inv2->unique)
 	{
-		// A unique full equal match is better than anything else.
+		// A unique full equal match is better than anything else
 		return true;
 	}
 
@@ -688,7 +689,7 @@ bool Retrieval::betterInversion(const InversionCandidate* inv1,
 			if (!cost1 && !cost2)
 			{
 				// Two zero costs should be handled as being the same
-				// (other comparison criteria should be applied, see below).
+				// (other comparison criteria should be applied, see below)
 				diffCost = 1;
 			}
 			else if (cost1)
@@ -701,19 +702,33 @@ bool Retrieval::betterInversion(const InversionCandidate* inv1,
 			{
 				// If the "same" costs then compare with the nr of unmatched segments,
 				// how many indexes and matched segments. First compare number of indexes.
+
 				int diff = (inv1->indexes - inv2->indexes);
 
 				if (diff == 0)
 				{
 					// For the same number of indexes compare number of matched segments.
 					// Note the inverted condition: the more matched segments the better.
+
 					diff = (inv2->matchedSegments - inv1->matchedSegments);
 
-					if (diff == 0 && !ignoreUnmatched)
+					if (diff == 0 && !navigation)
 					{
-						// For the same number of matched segments
-						// compare ones that aren't full matched
+						// For the same number of matched segments compare ones that aren't full matched.
+						//
+						// However, unmatched segments and small cost difference do not matter
+						// if we already know the first retrieval being usable for navigation.
+
 						diff = (inv1->nonFullMatchedSegments - inv2->nonFullMatchedSegments);
+
+						if (diff == 0)
+						{
+							// For inversions with nearly the same cost but without other preferences found,
+							// return the actually cheaper inversion (based on cost only)
+
+							if (cost1 < cost2)
+								return true;
+						}
 					}
 				}
 
@@ -1067,6 +1082,7 @@ void Retrieval::getInversionCandidates(InversionCandidateList& inversions,
 			invCandidate->cost = DEFAULT_INDEX_COST + scratch.cardinality;
 			invCandidate->indexes = 1;
 			invCandidate->scratch = &scratch;
+			invCandidate->nonFullMatchedSegments = scratch.segments.getCount();
 			invCandidate->matches.assign(scratch.matches);
 
 			for (auto match : invCandidate->matches)
