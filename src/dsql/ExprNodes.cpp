@@ -12851,7 +12851,7 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
             while (offsetLead < valueCanonicalLen)
             {
                 bool found = false;
-                for (int i = 0; i < charactersCanonicalLen; i+=4)
+                for (int i = 0; i < charactersCanonicalLen; i+=1)
                 {
                     if (valueCanonical[offsetLead] == charactersCanonical[i])
                     {
@@ -12869,14 +12869,15 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 
         if (where == blr_btrim || where == blr_rtrim)
         {
-            while (offsetTrail - charactersCanonicalLen >= offsetLead)
+            while (offsetTrail - 1 >= offsetLead)
             {
                 bool found = false;
-                for (int i = 0; i < charactersCanonicalLen; i+=4)
+                for (int i = 0; i < charactersCanonicalLen; i+=1)
                 {
-                    if (valueCanonical[offsetTrail - charactersCanonicalLen] == charactersCanonical[i])
+                    if (valueCanonical[offsetTrail - 1] == charactersCanonical[i])
                     {
                         found = true;
+
                         break;
                     }
                 }
@@ -12884,7 +12885,7 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
                 {
                     break;
                 }
-                offsetTrail -= charactersCanonicalLen;
+                offsetTrail -= 1;
             }
         }
 	}

@@ -41,7 +41,8 @@ B)
 		where rdb$system_flag = 1;
 
 C)
+             
         select
-                ltrim(rdb$relation_name, 'RDB$')
-                from rdb$relations
-                where rdb$relation_name starting with 'RDB$';
+       		ltrim('baobab is a tree', 'aboe')
+       		from rdb$relations;
+        is a tree
