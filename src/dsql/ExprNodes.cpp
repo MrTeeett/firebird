@@ -12816,21 +12816,20 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 	// CVC: Avoid endless loop with zero length trim chars.
 	if (charactersCanonicalLen)
 	{
+        int encryptionStep = charactersCanonical.getCount() / charactersLength;
 		if (where == blr_trim_both || where == blr_trim_leading)
-        {
+        {    
+            // CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
+            for (; offsetLead + charactersCanonicalLen <= valueCanonicalLen;
+                 offsetLead += charactersCanonicalLen)
             {
-                // CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
-                for (; offsetLead + charactersCanonicalLen <= valueCanonicalLen;
-                     offsetLead += charactersCanonicalLen)
+                if (memcmp(charactersCanonical.begin(), &valueCanonical[offsetLead],
+                        charactersCanonicalLen) != 0)
                 {
-                    if (memcmp(charactersCanonical.begin(), &valueCanonical[offsetLead],
-                               charactersCanonicalLen) != 0)
-                    {
                         break;
-                    }
                 }
             }
-		}
+        }
 
 		if (where == blr_trim_both || where == blr_trim_trailing)
 		{
@@ -12851,9 +12850,10 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
             while (offsetLead < valueCanonicalLen)
             {
                 bool found = false;
-                for (int i = 0; i < charactersCanonicalLen; i+=1)
+                for (int i = 0; i < charactersCanonicalLen; i += encryptionStep)
                 {
-                    if (valueCanonical[offsetLead] == charactersCanonical[i])
+                    if (memcmp(&charactersCanonical[i], &valueCanonical[offsetLead],
+                               sizeof(charactersCanonical[i])) == 0)
                     {
                         found = true;
                         break;
@@ -12863,21 +12863,22 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
                 {
                     break;
                 }
-                offsetLead += 1;
+                offsetLead += encryptionStep;
             }
         }
 
         if (where == blr_btrim || where == blr_rtrim)
         {
-            while (offsetTrail - 1 >= offsetLead)
+            while (offsetTrail - encryptionStep >= offsetLead)
             {
                 bool found = false;
-                for (int i = 0; i < charactersCanonicalLen; i+=1)
+                for (int i = 0; i < charactersCanonicalLen; i += encryptionStep)
                 {
-                    if (valueCanonical[offsetTrail - 1] == charactersCanonical[i])
+                    if (memcmp(&charactersCanonical[i],
+                               &valueCanonical[offsetTrail - encryptionStep],
+                               sizeof(charactersCanonical[i])) == 0)
                     {
                         found = true;
-
                         break;
                     }
                 }
@@ -12885,7 +12886,7 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
                 {
                     break;
                 }
-                offsetTrail -= 1;
+                offsetTrail -= encryptionStep;
             }
         }
 	}

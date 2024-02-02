@@ -17,10 +17,10 @@ Format:
 
 	<trim character> ::=
 		<value expression>
-		
 
-        <multi-character trim function> ::=
-                { BTRIM | LTRIM | RTRIM } <left paren> <trim source> [ <comma> <trim character> ] <right paren>
+
+	<multi-character trim function> ::=
+		{ BTRIM | LTRIM | RTRIM } <left paren> <trim source> [ <comma> <trim character> ] <right paren>
 
 Syntax Rules:
 	1) If <trim specification> is not specified, BOTH is assumed.
@@ -41,7 +41,7 @@ B)
 		from rdb$relations
 		where rdb$system_flag = 1;
 
-C)             
-        select
-       		ltrim('baobab is a tree', 'aboe')
-       		from rdb$relations;
+C)
+	select
+		ltrim('baobab is a tree', 'aboe')
+		from rdb$database;
