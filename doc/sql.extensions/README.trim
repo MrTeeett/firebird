@@ -17,6 +17,7 @@ Format:
 
 	<trim character> ::=
 		<value expression>
+		
 
         <multi-character trim function> ::=
                 { BTRIM | LTRIM | RTRIM } <left paren> <trim source> [ <comma> <trim character> ] <right paren>
@@ -40,9 +41,7 @@ B)
 		from rdb$relations
 		where rdb$system_flag = 1;
 
-C)
-             
+C)             
         select
        		ltrim('baobab is a tree', 'aboe')
        		from rdb$relations;
-        is a tree
