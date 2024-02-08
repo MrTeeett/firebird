@@ -12817,14 +12817,14 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 	if (charactersCanonicalLen)
     {
         int charSize = charactersCanonical.getCount() / charactersLength;
-		if (where == blr_trim_both || where == blr_trim_leading)
+        if (where == blr_trim_both || where == blr_trim_leading)
         {
             // CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
             for (; offsetLead + charactersCanonicalLen <= valueCanonicalLen;
-                 offsetLead += charactersCanonicalLen)
+                offsetLead += charactersCanonicalLen)
             {
                 if (memcmp(charactersCanonical.begin(), &valueCanonical[offsetLead],
-                           charactersCanonicalLen) != 0)
+                        charactersCanonicalLen) != 0)
                 {
                     break;
                 }
