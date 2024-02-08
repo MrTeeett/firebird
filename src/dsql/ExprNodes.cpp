@@ -12815,21 +12815,21 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 
 	// CVC: Avoid endless loop with zero length trim chars.
 	if (charactersCanonicalLen)
-    {
-        int charSize = charactersCanonical.getCount() / charactersLength;
-        if (where == blr_trim_both || where == blr_trim_leading)
-        {
-            // CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
-            for (; offsetLead + charactersCanonicalLen <= valueCanonicalLen;
-                offsetLead += charactersCanonicalLen)
-            {
-                if (memcmp(charactersCanonical.begin(), &valueCanonical[offsetLead],
-                        charactersCanonicalLen) != 0)
-                {
-                    break;
-                }
-            }
-        }
+	{
+		int charSize = charactersCanonical.getCount() / charactersLength;
+		if (where == blr_trim_both || where == blr_trim_leading)
+		{
+			// CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
+			for (; offsetLead + charactersCanonicalLen <= valueCanonicalLen;
+				offsetLead += charactersCanonicalLen)
+			{
+				if (memcmp(charactersCanonical.begin(), &valueCanonical[offsetLead],
+						charactersCanonicalLen) != 0)
+				{
+					break;
+				}
+			}
+		}
 
 		if (where == blr_trim_both || where == blr_trim_trailing)
 		{
