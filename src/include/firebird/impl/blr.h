@@ -346,6 +346,11 @@
 #define blr_trim_spaces		(unsigned char)0
 #define blr_trim_characters	(unsigned char)1
 
+/* multi-character trim for blr_trim */
+#define blr_trim_btrim      (unsigned char)3
+#define blr_trim_ltrim      (unsigned char)4
+#define blr_trim_rtrim      (unsigned char)5
+
 /* These codes are actions for cursors */
 
 #define blr_cursor_open			(unsigned char)0
@@ -497,8 +502,5 @@
 
 #define blr_cast_format				                (unsigned char) 228
 
-#define blr_btrim                                   (unsigned char)229
-#define blr_ltrim                                   (unsigned char)230
-#define blr_rtrim                                   (unsigned char)231
 
 #endif // FIREBIRD_IMPL_BLR_H
