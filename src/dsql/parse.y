@@ -4498,9 +4498,9 @@ keyword_or_column
 	| WINDOW
 	| WITHOUT
 	| CALL					// added in FB 6.0
-        | BTRIM
-        | LTRIM
-        | RTRIM
+	| BTRIM
+	| LTRIM
+	| RTRIM
 	;
 
 col_opt
@@ -8741,9 +8741,9 @@ of_first_last_day_part
 string_value_function
 	: substring_function
 	| trim_function
-        | btrim_function
-        | ltrim_function
-        | rtrim_function
+	| btrim_function
+	| ltrim_function
+	| rtrim_function
 	| UPPER '(' value ')'
 		{ $$ = newNode<StrCaseNode>(blr_upcase, $3); }
 	| LOWER '(' value ')'
@@ -8787,29 +8787,29 @@ trim_function
 
 %type <valueExprNode> btrim_function
 btrim_function
-        : BTRIM '(' value ',' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_btrim, $3, $5); }
-        | BTRIM '(' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_btrim, $3); }
-        ;
+	: BTRIM '(' value ',' value ')'
+		{ $$ = newNode<TrimNode>(blr_trim_btrim, $3, $5); }
+	| BTRIM '(' value ')'
+		{ $$ = newNode<TrimNode>(blr_trim_btrim, $3); }
+	;
 
 
 %type <valueExprNode> ltrim_function
 ltrim_function
-        : LTRIM '(' value ',' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_ltrim, $3, $5); }
-        | LTRIM '(' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_ltrim, $3); }
-        ;
+	: LTRIM '(' value ',' value ')'
+		{ $$ = newNode<TrimNode>(blr_trim_ltrim, $3, $5); }
+	| LTRIM '(' value ')'
+		{ $$ = newNode<TrimNode>(blr_trim_ltrim, $3); }
+	;
 
 
 %type <valueExprNode> rtrim_function
 rtrim_function
-        : RTRIM '(' value ',' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_rtrim, $3, $5); }
-        | RTRIM '(' value ')'
-                { $$ = newNode<TrimNode>(blr_trim_rtrim, $3); }
-        ;
+	: RTRIM '(' value ',' value ')'
+		{ $$ = newNode<TrimNode>(blr_trim_rtrim, $3, $5); }
+	| RTRIM '(' value ')'
+		{ $$ = newNode<TrimNode>(blr_trim_rtrim, $3); }
+	;
 
 
 %type <blrOp> trim_specification

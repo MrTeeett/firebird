@@ -12578,19 +12578,19 @@ ValueExprNode* TrimNode::dsqlPass(DsqlCompilerScratch* dsqlScratch)
 
 void TrimNode::setParameterName(dsql_par* parameter) const
 {
-    switch (where) {
-    case blr_trim_btrim:
-        parameter->par_name = parameter->par_alias = "BTRIM";
-        break;
-    case blr_trim_ltrim:
-        parameter->par_name = parameter->par_alias = "LTRIM";
-        break;
-    case blr_trim_rtrim:
-        parameter->par_name = parameter->par_alias = "RTRIM";
-        break;
-    default:
-        parameter->par_name = parameter->par_alias = "TRIM";
-    }
+	switch (where) {
+	case blr_trim_btrim:
+		parameter->par_name = parameter->par_alias = "BTRIM";
+		break;
+	case blr_trim_ltrim:
+		parameter->par_name = parameter->par_alias = "LTRIM";
+		break;
+	case blr_trim_rtrim:
+		parameter->par_name = parameter->par_alias = "RTRIM";
+		break;
+	default:
+		parameter->par_name = parameter->par_alias = "TRIM";
+	}
 }
 
 bool TrimNode::setParameterType(DsqlCompilerScratch* dsqlScratch,
@@ -12845,51 +12845,51 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 			}
 		}
 
-        if (where == blr_trim_btrim || where == blr_trim_ltrim)
-        {
-            while (offsetLead < valueCanonicalLen)
-            {
-                bool found = false;
-                for (int i = 0; i < charactersCanonicalLen; i += charSize)
-                {
+		if (where == blr_trim_btrim || where == blr_trim_ltrim)
+		{
+			while (offsetLead < valueCanonicalLen)
+			{
+				bool found = false;
+				for (int i = 0; i < charactersCanonicalLen; i += charSize)
+				{
 					if (memcmp(&charactersCanonical[i],
 							   &valueCanonical[offsetLead],
 							   charSize) == 0)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    break;
-                }
-                offsetLead += charSize;
-            }
-        }
+					{
+						found = true;
+						break;
+					}
+				}
+				if (!found)
+				{
+					break;
+				}
+				offsetLead += charSize;
+			}
+		}
 
 		if (where == blr_trim_btrim || where == blr_trim_rtrim)
 		{
-            while (offsetTrail - charSize >= offsetLead)
-            {
-                bool found = false;
-                for (int i = 0; i < charactersCanonicalLen; i += charSize)
-                {
-                    if (memcmp(&charactersCanonical[i],
-                               &valueCanonical[offsetTrail - charSize],
+			while (offsetTrail - charSize >= offsetLead)
+			{
+				bool found = false;
+				for (int i = 0; i < charactersCanonicalLen; i += charSize)
+				{
+					if (memcmp(&charactersCanonical[i],
+							   &valueCanonical[offsetTrail - charSize],
 							   charSize) == 0)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    break;
-                }
-                offsetTrail -= charSize;
-            }
-        }
+					{
+						found = true;
+						break;
+					}
+				}
+				if (!found)
+				{
+					break;
+				}
+				offsetTrail -= charSize;
+			}
+		}
 	}
 
 	if (valueDesc->isBlob())
