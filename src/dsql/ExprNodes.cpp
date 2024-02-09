@@ -12852,8 +12852,9 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
                 bool found = false;
                 for (int i = 0; i < charactersCanonicalLen; i += charSize)
                 {
-                    if (memcmp(&charactersCanonical[i], &valueCanonical[offsetLead],
-                               sizeof(charactersCanonical[i])) == 0)
+					if (memcmp(&charactersCanonical[i],
+							   &valueCanonical[offsetLead],
+							   charSize) == 0)
                     {
                         found = true;
                         break;
@@ -12867,8 +12868,8 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
             }
         }
 
-        if (where == blr_trim_btrim || where == blr_trim_rtrim)
-        {
+		if (where == blr_trim_btrim || where == blr_trim_rtrim)
+		{
             while (offsetTrail - charSize >= offsetLead)
             {
                 bool found = false;
@@ -12876,7 +12877,7 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
                 {
                     if (memcmp(&charactersCanonical[i],
                                &valueCanonical[offsetTrail - charSize],
-                               sizeof(charactersCanonical[i])) == 0)
+							   charSize) == 0)
                     {
                         found = true;
                         break;
