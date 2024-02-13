@@ -500,7 +500,7 @@
 
 #define blr_default_arg								(unsigned char) 227
 
-#define blr_cast_format				                (unsigned char) 228
+#define blr_cast_format				(unsigned char) 228
 
 
 #endif // FIREBIRD_IMPL_BLR_H

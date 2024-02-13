@@ -12821,7 +12821,7 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 		{
 			// CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
 			for (; offsetLead + charactersCanonicalLen <= valueCanonicalLen;
-				offsetLead += charactersCanonicalLen)
+				 offsetLead += charactersCanonicalLen)
 			{
 				if (memcmp(charactersCanonical.begin(), &valueCanonical[offsetLead],
 						charactersCanonicalLen) != 0)
