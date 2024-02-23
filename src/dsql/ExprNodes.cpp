@@ -12578,7 +12578,19 @@ ValueExprNode* TrimNode::dsqlPass(DsqlCompilerScratch* dsqlScratch)
 
 void TrimNode::setParameterName(dsql_par* parameter) const
 {
-	parameter->par_name = parameter->par_alias = "TRIM";
+	switch (where) {
+	case blr_trim_btrim:
+		parameter->par_name = parameter->par_alias = "BTRIM";
+		break;
+	case blr_trim_ltrim:
+		parameter->par_name = parameter->par_alias = "LTRIM";
+		break;
+	case blr_trim_rtrim:
+		parameter->par_name = parameter->par_alias = "RTRIM";
+		break;
+	default:
+		parameter->par_name = parameter->par_alias = "TRIM";
+	}
 }
 
 bool TrimNode::setParameterType(DsqlCompilerScratch* dsqlScratch,
@@ -12804,6 +12816,7 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 	// CVC: Avoid endless loop with zero length trim chars.
 	if (charactersCanonicalLen)
 	{
+		int charSize = charactersCanonical.getCount() / charactersLength;
 		if (where == blr_trim_both || where == blr_trim_leading)
 		{
 			// CVC: Prevent surprises with offsetLead < valueCanonicalLen; it may fail.
@@ -12829,6 +12842,52 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 				{
 					break;
 				}
+			}
+		}
+
+		if (where == blr_trim_btrim || where == blr_trim_ltrim)
+		{
+			while (offsetLead < valueCanonicalLen)
+			{
+				bool found = false;
+				for (int i = 0; i < charactersCanonicalLen; i += charSize)
+				{
+					if (memcmp(&charactersCanonical[i],
+							   &valueCanonical[offsetLead],
+							   charSize) == 0)
+					{
+						found = true;
+						break;
+					}
+				}
+				if (!found)
+				{
+					break;
+				}
+				offsetLead += charSize;
+			}
+		}
+
+		if (where == blr_trim_btrim || where == blr_trim_rtrim)
+		{
+			while (offsetTrail - charSize >= offsetLead)
+			{
+				bool found = false;
+				for (int i = 0; i < charactersCanonicalLen; i += charSize)
+				{
+					if (memcmp(&charactersCanonical[i],
+							   &valueCanonical[offsetTrail - charSize],
+							   charSize) == 0)
+					{
+						found = true;
+						break;
+					}
+				}
+				if (!found)
+				{
+					break;
+				}
+				offsetTrail -= charSize;
 			}
 		}
 	}
