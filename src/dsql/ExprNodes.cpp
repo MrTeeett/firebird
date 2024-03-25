@@ -12837,7 +12837,7 @@ dsc* TrimNode::execute(thread_db* tdbb, Request* request) const
 				}
 			}
 		}
-		if (multi)
+		else
 		{
 			if (where == blr_trim_both || where == blr_trim_leading)
 			{
